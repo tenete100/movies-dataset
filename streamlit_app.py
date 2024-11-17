@@ -1,66 +1,126 @@
-import altair as alt
-import pandas as pd
 import streamlit as st
+from PIL import Image
+import pandas as pd
+import glob
 
-# Show the page title and description.
-st.set_page_config(page_title="Movies dataset", page_icon="🎬")
-st.title("🎬 Movies dataset")
-st.write(
-    """
-    This app visualizes data from [The Movie Database (TMDB)](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata).
-    It shows which movie genre performed best at the box office over the years. Just 
-    click on the widgets below to explore!
-    """
-)
+# Define functions for each page
+def home_page():
+    st.title("Home Page")
+    st.write("Welcome!")
+
+def image_processing_page():
+    st.title("Tag selection")
+
+    # Upload an image
+    uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+    
+    if uploaded_image is not None:
+        # Open the image with PIL
+        image = Image.open(uploaded_image)
+
+        # Display the uploaded image
+        
+        st.image(image, caption="Uploaded Image", use_container_width=True)
+
+        # Process the image
+        result = process_image(image)
+        st.write("Result:")
+        st.write(result)
+
+def select_tags_page():
+    st.title("Tag selection")
+    # Sample CSV loading
+    # Replace 'your_file.csv' with your actual file path
+    # Example CSV structure:
+    # Name,Tag
+    # Alice,Python
+    # Bob,Data Science
+    # Charlie,Machine Learning
+
+    # Load the CSV file
+
+    #uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    #uploaded_file = pd.read_csv("attribute_data.csv")
+    uploaded_file = "attribute_data.csv"
+
+    if uploaded_file is not None:
+        # Read the CSV into a DataFrame
+        df = pd.read_csv(uploaded_file)
+
+        #st.write("### Uploaded Data")
+        #st.dataframe(df)
+
+        # Extract unique tags
+        unique_tags = df['attribute_name'].unique()
+
+        # Tag selection
+        selected_tags = st.multiselect("Select tags to filter by", unique_tags)
+        if selected_tags:
+            filtered_df = df[df['attribute_name'].isin(selected_tags)]
+            unique_tags_filt = filtered_df['des_value'].unique()
+            selected_tags_filt = st.multiselect("Filter by secondary tags", unique_tags_filt)
+
+            if selected_tags_filt:
+                col1, col2 = st.columns(2)
+                filtered_df_filt = filtered_df[filtered_df['des_value'].isin(selected_tags_filt)]
+                first_column_vector = filtered_df_filt.iloc[:, 0].tolist()
+
+                # Initialize display range
+                if "display_range" not in st.session_state:
+                    st.session_state.display_range = 10
+
+                # Display images
+                for i in range(min(st.session_state.display_range, len(first_column_vector))):
+                    if i%2==0:
+                        with col1:
+                            imatges = glob.glob(f'images/{first_column_vector[i]}*')
+                            if len(imatges) > 0:
+                                st.image(imatges[0], use_container_width=True)
+                            #else:
+                                #st.warning(f"No image found for: {first_column_vector[i]}")
+                    else:
+                        with col2:
+                            imatges = glob.glob(f'images/{first_column_vector[i]}*')
+                            if len(imatges) > 0:
+                                st.image(imatges[0], use_container_width=True)
+                            #else:
+                                #st.warning(f"No image found for: {first_column_vector[i]}")
+
+                # Load more button
+                if st.session_state.display_range<len(first_column_vector):
+                    if st.button("Load more"):
+                        st.session_state.display_range += 10
+            else:
+                st.write("Select secondary tags to see filtered results.")
+        else:
+            st.write("Select primary tags to see filtered results.")
+
+def about_page():
+    st.title("about page")
+    st.title("Multiple Buttons Example")
+
+    #if st.button("Say Hello"):
+    #    st.write("Hello there!")
+
+    #if st.button("Say Goodbye"):
+    #    st.write("Goodbye!")
+# Example image processing function
+def process_image(image):
+    # Example logic: Count the number of pixels (placeholder)
+    width, height = image.size
+    return f"The image has dimensions: {width}x{height} pixels."
+
+# Sidebar navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Home", "Image Processing", "About","Tag selection"])
 
 
-# Load the data from a CSV. We're caching this so it doesn't reload every time the app
-# reruns (e.g. if the user interacts with the widgets).
-@st.cache_data
-def load_data():
-    df = pd.read_csv("data/movies_genres_summary.csv")
-    return df
-
-
-df = load_data()
-
-# Show a multiselect widget with the genres using `st.multiselect`.
-genres = st.multiselect(
-    "Genres",
-    df.genre.unique(),
-    ["Action", "Adventure", "Biography", "Comedy", "Drama", "Horror"],
-)
-
-# Show a slider widget with the years using `st.slider`.
-years = st.slider("Years", 1986, 2006, (2000, 2016))
-
-# Filter the dataframe based on the widget input and reshape it.
-df_filtered = df[(df["genre"].isin(genres)) & (df["year"].between(years[0], years[1]))]
-df_reshaped = df_filtered.pivot_table(
-    index="year", columns="genre", values="gross", aggfunc="sum", fill_value=0
-)
-df_reshaped = df_reshaped.sort_values(by="year", ascending=False)
-
-
-# Display the data as a table using `st.dataframe`.
-st.dataframe(
-    df_reshaped,
-    use_container_width=True,
-    column_config={"year": st.column_config.TextColumn("Year")},
-)
-
-# Display the data as an Altair chart using `st.altair_chart`.
-df_chart = pd.melt(
-    df_reshaped.reset_index(), id_vars="year", var_name="genre", value_name="gross"
-)
-chart = (
-    alt.Chart(df_chart)
-    .mark_line()
-    .encode(
-        x=alt.X("year:N", title="Year"),
-        y=alt.Y("gross:Q", title="Gross earnings ($)"),
-        color="genre:N",
-    )
-    .properties(height=320)
-)
-st.altair_chart(chart, use_container_width=True)
+# Display the selected page
+if page == "Home":
+    home_page()
+elif page == "Image Processing":
+    image_processing_page()
+elif page == "About":
+    about_page()
+elif page == "Tag selection":
+    select_tags_page()
